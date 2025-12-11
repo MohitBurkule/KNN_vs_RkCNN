@@ -1,11 +1,6 @@
-# Attention is Soft KNN
+# RkCNN vs The Curse of Dimensionality
 
-Visualizing the explicit mathematical equivalence between Transformer Attention and Nadaraya-Watson Kernel Regression.
-
-
-https://github.com/user-attachments/assets/96be729d-93d7-4286-8298-abcbfb216f04
-
-
+Visualizing how Random Subspace Sampling beats the Curse of Dimensionality.
 
 ## Live Demo
 
@@ -13,45 +8,35 @@ Check out the live visualization here: [https://mohitburkule.github.io/Attention
 
 ## About
 
-This project is a single-file HTML application that visualizes how the Attention mechanism in Transformers works, by drawing parallels to Kernel Regression (KNN).
+This project is a single-file HTML application that visualizes the "Curse of Dimensionality" in Machine Learning and how a technique called **RkCNN (Random k Conditional Nearest Neighbors)** uses Random Subspace Sampling to overcome it.
 
 It features:
-- Interactive visualization where you can drag a "Query" ring to see how it absorbs colors ("Values") from nearby "Keys".
-- Real-time calculation of Attention Weights.
-- Mathematical explanation and side-by-side comparison of Kernel Regression and Transformer Attention formulas.
+- **Interactive Simulation:** Visualize how high-dimensional noise destroys the accuracy of standard kNN.
+- **Real-time Controls:** Adjust Noise Magnitude and Total Dimensions to see their effect on the decision boundary.
+- **Side-by-Side Comparison:** Toggle between "Standard kNN" (which fails in high noise) and "RkCNN" (which robustly finds the signal).
+- **Algorithm Internals:** Watch the "Separation Score" calculate in real-time to distinguish between useful signal and random noise.
 
 ## Why is this useful?
 
-Understanding modern Large Language Models (LLMs) can be daunting due to their complexity. However, at their core, the Attention mechanism—the engine of Transformers—is actually a differentiable version of a classic algorithm: **Kernel Density Estimation** or **Nadaraya-Watson Kernel Regression**.
+In real-world datasets (like gene expression or image recognition), data is often high-dimensional. However, usually only a few dimensions contain meaningful "signal", while the rest are "noise".
 
-By visualizing this link, we demystify "Attention" and ground it in well-understood statistical concepts. It shows that LLMs are effectively performing a sophisticated lookup (or "soft dictionary search") in a high-dimensional space. This intuition is crucial for students and researchers trying to grasp the fundamental operations of Deep Learning models without getting lost in the jargon.
+- **Standard kNN** treats all dimensions equally. As noise increases, the distance metric becomes meaningless (points become equidistant), leading to random predictions.
+- **RkCNN** mimics how ensembles (like Random Forests) or feature selection work. It samples random subsets of features and keeps only those that separate the classes well.
 
-## The Equivalence: Attention = Soft KNN
+## The Algorithms
 
-The core insight is that the attention operation is mathematically identical to a weighted average estimator, where the weights are determined by similarity.
+### 1. Standard kNN (The Problem)
+Standard kNN calculates the Euclidean distance between points using **every available dimension**. When Noise > Signal, the accumulated error from noise dimensions drowns out the true signal.
 
-### 1. Kernel Regression (1964)
-In classical non-parametric regression, to predict a value $y$ for a new query point $x$, we look at existing data points $x_i$ and calculate a weighted average of their values $y_i$. The weights depend on how similar (or close) $x$ is to $x_i$, determined by a kernel function $K$.
+### 2. RkCNN (The Solution)
+RkCNN combats this by never trusting the full feature set at once. Instead, it generates multiple **random subsets** of features.
 
-$$y = \frac{\sum K(x, x_i)y_i}{\sum K(x, x_i)}$$
+For each subset, it calculates a **Separation Score ($S$)**:
 
-### 2. Transformer Attention (2017)
-In Transformers, to compute a new representation (Context) for a token (Query $Q$), we compare it against other tokens (Keys $K$) to retrieve information (Values $V$).
+$$S = \frac{BV}{WV} = \frac{\text{Between-Group Variance}}{\text{Within-Group Variance}}$$
 
-$$\text{Attn}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V$$
-
-### The Mapping
-
-| Concept | Kernel Regression Term | Transformer Attention Term |
-| :--- | :--- | :--- |
-| **Search Input** | Target $x$ | Query $Q$ |
-| **Database** | Examples $x_i$ | Keys $K$ |
-| **Content** | Labels $y_i$ | Values $V$ |
-| **Similarity** | Kernel $K(x, x_i)$ | Dot Product $QK^T$ |
-| **Normalization** | Denominator $\sum K(...)$ | Softmax |
-| **Result** | Smoothed $y$ | Context Vector |
-
-In essence, **Attention is just a database lookup where you get a blend of results based on relevance, rather than a single exact match.**
+- Subsets dominated by noise yield low scores and are ignored.
+- Subsets containing signal features yield high scores and are used for prediction.
 
 ## How to Run Locally
 
@@ -70,5 +55,5 @@ start index.html # On Windows
 ## Technologies Used
 
 - HTML5 Canvas
-- Tailwind CSS
+- Tailwind CSS (via CDN)
 - MathJax (for rendering equations)
