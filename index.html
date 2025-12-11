@@ -3,476 +3,666 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attention is Soft KNN</title>
+    <title>RkCNN vs The Curse of Dimensionality</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    
-    <script>
-        window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']]
-            }
-        };
-    </script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Slate 900 */
-            color: #f8fafc;
+            background-color: #020617; /* Slate 950 */
+            color: #e2e8f0;
         }
         .mono {
             font-family: 'JetBrains Mono', monospace;
         }
         .glass {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .glass-purple {
-            background: rgba(88, 28, 135, 0.4);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(168, 85, 247, 0.3);
+        .glass-active {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(56, 189, 248, 0.3);
         }
         canvas {
-            touch-action: none; /* Prevent scrolling while dragging on canvas */
+            touch-action: none;
         }
-        /* Custom scrollbar for AI response */
+        .btn-toggle {
+            transition: all 0.2s ease;
+        }
+        .btn-toggle:hover {
+            transform: translateY(-1px);
+        }
+        .bar-anim {
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #fff;
+            margin-top: -6px;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #475569;
+            border-radius: 2px;
+        }
+        /* Number Input Styling */
+        input[type=number] {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+            width: 80px;
+        }
+        input[type=number]:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        /* Scrollbar */
         .custom-scroll::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
         }
         .custom-scroll::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(0,0,0,0.1);
         }
         .custom-scroll::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-        }
-        .shimmer {
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
         }
     </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen flex flex-col">
 
-    <!-- Title Section -->
-    <div class="max-w-5xl mx-auto px-6 pt-10 pb-6">
-        <h1 class="text-4xl font-bold text-white mb-2 tracking-tight">
-            <span class="text-blue-500">Attention</span> is Soft <span class="text-green-400">KNN</span>
+    <!-- Header -->
+    <div class="max-w-6xl mx-auto w-full px-6 pt-8 pb-4">
+        <h1 class="text-4xl font-bold mb-2 tracking-tight text-white">
+            <span class="text-red-500">Noisy kNN</span> vs <span class="text-emerald-400">RkCNN</span>
         </h1>
-        <p class="text-slate-400 text-lg">
-            Visualizing the explicit mathematical equivalence between Transformer Attention and Nadaraya-Watson Kernel Regression.
+        <p class="text-slate-400 text-lg max-w-2xl">
+            Visualizing how Random Subspace Sampling beats the Curse of Dimensionality. 
+            The points have <span class="text-white font-bold">2 Signal Dimensions</span>. All others are noise.
         </p>
     </div>
 
-    <!-- Visualization Section (Moved to Top) -->
-    <div id="app-container" class="max-w-5xl mx-auto px-6 pb-12 min-h-[700px]">
-        <div class="glass rounded-xl p-1 relative">
-            <canvas id="attnCanvas" class="w-full h-[600px] rounded-lg cursor-crosshair bg-slate-900"></canvas>
-            
-            <!-- Floating UI Overlay -->
-            <div class="absolute top-4 left-4 p-4 glass rounded-lg max-w-xs pointer-events-none">
-                <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">Attention Weights (Softmax)</div>
-                <div id="weights-display" class="space-y-1 font-mono text-sm">
-                    <!-- Javascript will populate this -->
+    <!-- Main Content Grid -->
+    <div class="max-w-6xl mx-auto w-full px-6 pb-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Visualization -->
+        <div class="lg:col-span-2 space-y-4">
+            <div class="glass rounded-2xl p-1 relative group overflow-hidden">
+                <canvas id="mainCanvas" class="w-full h-[500px] rounded-xl cursor-crosshair bg-[#0B1120]"></canvas>
+                
+                <!-- Overlay Legend -->
+                <div class="absolute top-4 left-4 pointer-events-none space-y-2">
+                    <div class="flex items-center gap-2 glass px-3 py-1.5 rounded-full text-xs">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Class A
+                    </div>
+                    <div class="flex items-center gap-2 glass px-3 py-1.5 rounded-full text-xs">
+                        <span class="w-2 h-2 rounded-full bg-orange-500"></span> Class B
+                    </div>
+                    <div class="flex items-center gap-2 glass px-3 py-1.5 rounded-full text-slate-300">
+                        <span class="w-2 h-2 border border-white rounded-full"></span> Query (Mouse)
+                    </div>
+                </div>
+
+                <!-- Mode Indicator -->
+                <div class="absolute top-4 right-4 pointer-events-none">
+                    <div id="mode-badge" class="glass px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-red-400 border border-red-500/30">
+                        Standard kNN (Confused)
+                    </div>
+                </div>
+
+                <!-- Controls Overlay -->
+                <div class="absolute bottom-4 left-4 right-4 glass rounded-lg p-3 flex flex-col gap-3">
+                    <div class="flex items-center gap-4">
+                        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 w-24">Noise Magnitude</div>
+                        <input type="range" id="noise-slider" min="0" max="2" step="0.1" value="1" class="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                        <div id="noise-val" class="text-xs font-mono text-white w-12 text-right">1.0x</div>
+                    </div>
+                    <div class="flex items-center gap-4 border-t border-slate-700/50 pt-3">
+                        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 w-24">Dimensions</div>
+                        <input type="number" id="dim-input" value="50" min="3" max="500">
+                        <div class="text-xs text-slate-500 flex-grow text-right">
+                            <span class="text-white font-bold">2</span> Signal + <span id="noise-dims-display" class="text-white font-bold">48</span> Noise
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <div class="absolute bottom-4 left-4 text-slate-400 text-xs pointer-events-none">
-                Drag the white ring (Query) to see how it absorbs colors (Values) from nearby keys.
+
+            <!-- Mode Selection -->
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="setMode('knn')" id="btn-knn" class="btn-toggle glass glass-active rounded-xl p-4 text-left group">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="material-symbols-outlined text-red-400 group-hover:scale-110 transition-transform">blur_on</span>
+                        <span class="font-bold text-white">Standard kNN</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Distance calculated using <span class="dim-count-text">50</span> dimensions. Sensitive to noise.</p>
+                </button>
+
+                <button onclick="setMode('rkcnn')" id="btn-rkcnn" class="btn-toggle glass rounded-xl p-4 text-left group">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 transition-transform">filter_center_focus</span>
+                        <span class="font-bold text-white">RkCNN</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Uses random subset (5 dims). Filters most noise but maintains signal.</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right: Metrics Only -->
+        <div class="space-y-6">
+            <!-- Current State Card -->
+            <div class="glass rounded-2xl p-6">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">Algorithm Internals</h3>
+                
+                <!-- Separation Score Viz -->
+                <div class="mb-6">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-slate-300">Separation Score (S)</span>
+                        <span id="score-val" class="mono font-bold text-white">0.0012</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="score-bar" class="h-full bg-red-500 bar-anim" style="width: 5%"></div>
+                    </div>
+                    <p id="score-desc" class="text-xs text-slate-500 mt-2">
+                        Low Score: The ratio of Between-group Variance to Within-group Variance is tiny.
+                    </p>
+                </div>
+
+                <!-- Feature Subset Viz -->
+                <div class="mb-6">
+                    <div class="text-sm text-slate-300 mb-2">Active Features (First 30)</div>
+                    <div id="features-viz" class="flex flex-wrap gap-1">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Math Block -->
+                <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700/50">
+                    <div class="text-[10px] text-slate-500 uppercase mb-1">PeerJ-CS 2497 Metric</div>
+                    <div class="text-center text-sm font-serif text-slate-300">
+                        $$S = \frac{BV}{WV} = \frac{\text{Between Var}}{\text{Within Var}}$$
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Explanatory Content (Moved Below) -->
-    <div class="max-w-5xl mx-auto px-6 pb-16">
-        <div class="grid md:grid-cols-2 gap-8 mb-8">
-            <!-- KNN Side -->
-            <div class="space-y-4">
-                <h3 class="flex items-center gap-2 text-green-400 font-semibold uppercase tracking-wider text-sm">
-                    <span class="material-symbols-outlined">dataset</span> Kernel Regression (1964)
-                </h3>
-                <div class="glass rounded-lg p-4 font-serif text-lg text-center overflow-x-auto">
-                    $$y = \frac{\sum K(x, x_i)y_i}{\sum K(x, x_i)}$$
-                </div>
-                <p class="text-sm text-slate-400 leading-relaxed">
-                    To predict the value ($y$) for a query point ($x$), we look at all training points ($x_i$). 
-                    We calculate a similarity weight $K(x, x_i)$ for each. 
-                    The result is a <b>weighted average</b> of their known values ($y_i$).
-                </p>
-            </div>
-
-            <!-- Attention Side -->
-            <div class="space-y-4">
-                <h3 class="flex items-center gap-2 text-blue-400 font-semibold uppercase tracking-wider text-sm">
-                    <span class="material-symbols-outlined">smart_toy</span> Transformer Attention (2017)
-                </h3>
-                <div class="glass rounded-lg p-4 font-serif text-lg text-center overflow-x-auto">
-                    $$\text{Attn}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V$$
-                </div>
-                <p class="text-sm text-slate-400 leading-relaxed">
-                    To find the Context ($Z$) for a Query ($Q$), we compare it against all Keys ($K$).
-                    The dot product $QK^T$ is the similarity kernel. 
-                    Softmax normalizes these weights (just like the denominator in regression).
-                    We then sum the Values ($V$).
-                </p>
-            </div>
-        </div>
-
-        <!-- The Mapping Table -->
-        <div class="glass rounded-xl p-6 overflow-hidden mb-8">
-            <h4 class="text-center text-xs font-bold text-white mb-6 uppercase tracking-widest opacity-60">The Dictionary</h4>
+    <!-- Bottom: Methodology Comparison (Moved from Sidebar) -->
+    <div class="max-w-6xl mx-auto w-full px-6 pb-12">
+        <div class="glass rounded-2xl p-8">
+            <h3 class="text-sm font-bold uppercase tracking-widest text-indigo-400 mb-6 border-b border-white/10 pb-4">Methodology Comparison</h3>
             
-            <div class="grid grid-cols-4 gap-4 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-700 pb-2 mb-2">
-                <div>Concept</div>
-                <div>Regression Term</div>
-                <div>Attention Term</div>
-                <div>In Visualizer</div>
-            </div>
-            
-            <!-- Row 1 -->
-            <div class="grid grid-cols-4 gap-4 text-sm items-center py-3 border-b border-slate-700/50">
-                <div class="font-semibold text-white">Search Input</div>
-                <div class="mono text-green-300">Target \(x\)</div>
-                <div class="mono text-blue-300">Query \(Q\)</div>
-                <div class="flex items-center gap-2 text-slate-300"><span class="w-3 h-3 rounded-full border-2 border-white bg-transparent"></span> Draggable Ring</div>
-            </div>
-            <!-- Row 2 -->
-            <div class="grid grid-cols-4 gap-4 text-sm items-center py-3 border-b border-slate-700/50">
-                <div class="font-semibold text-white">Database</div>
-                <div class="mono text-green-300">Examples \(x_i\)</div>
-                <div class="mono text-blue-300">Keys \(K\)</div>
-                <div class="flex items-center gap-2 text-slate-300"><span class="w-2 h-2 rounded-full bg-slate-500"></span> Fixed Dots</div>
-            </div>
-            <!-- Row 3 -->
-            <div class="grid grid-cols-4 gap-4 text-sm items-center py-3 border-b border-slate-700/50">
-                <div class="font-semibold text-white">Content</div>
-                <div class="mono text-green-300">Labels \(y_i\)</div>
-                <div class="mono text-blue-300">Values \(V\)</div>
-                <div class="flex items-center gap-2 text-slate-300"><span class="w-3 h-3 rounded bg-gradient-to-r from-red-500 to-blue-500"></span> Dot Colors</div>
-            </div>
-             <!-- Row 4 -->
-             <div class="grid grid-cols-4 gap-4 text-sm items-center py-3">
-                <div class="font-semibold text-white">Result</div>
-                <div class="mono text-green-300">Smoothed \(y\)</div>
-                <div class="mono text-blue-300">Context \(Z\)</div>
-                <div class="flex items-center gap-2 text-slate-300">Ring Fill Color</div>
+            <div class="grid md:grid-cols-2 gap-12 text-slate-300 leading-relaxed">
+                <div>
+                    <strong class="text-white text-lg block mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-red-400">error</span>
+                        Standard kNN (The Curse of Dimensionality)
+                    </strong>
+                    <p class="mb-4">
+                        Standard kNN calculates the Euclidean distance between points using <em class="text-red-300 font-semibold">every available dimension</em>. 
+                    </p>
+                    <p>
+                        In high-dimensional datasets (like gene expression data), meaningful features are often rare (e.g., 2 signal dimensions) while irrelevant features are abundant (e.g., 48 noise dimensions). When noise magnitude is high, the accumulated distance error from the 48 noise dimensions drowns out the valid signal. As a result, the "nearest" neighbor becomes mathematically random, creating the fractured decision boundary seen in the visualization.
+                    </p>
+                </div>
+
+                <div class="md:border-l md:border-white/10 md:pl-12">
+                    <strong class="text-white text-lg block mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emerald-400">check_circle</span>
+                        RkCNN (Random k Conditional NN)
+                    </strong>
+                    <p class="mb-4">
+                        RkCNN combats this by never trusting the full feature set at once. Instead, it generates multiple <em class="text-emerald-300 font-semibold">random subsets</em> of features.
+                    </p>
+                    <p>
+                        For each subset, it calculates a <strong>Separation Score</strong> ($S = BV/WV$), which measures how well the classes are separated in that specific subspace.
+                    </p>
+                    <ul class="list-disc pl-5 mt-4 space-y-2 text-slate-400">
+                        <li>Subsets dominated by noise yield low scores and are ignored.</li>
+                        <li>Subsets containing signal features yield high scores and drive the prediction.</li>
+                    </ul>
+                    <p class="mt-4 text-sm bg-emerald-500/10 p-3 rounded border border-emerald-500/20 text-emerald-200">
+                        This effectively acts as an auto-filter, locking onto the signal dimensions even in the presence of overwhelming noise.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        const canvas = document.getElementById('attnCanvas');
-        const ctx = canvas.getContext('2d');
-        const weightsDisplay = document.getElementById('weights-display');
-        const aiResponseArea = document.getElementById('ai-response-area');
+        // --- Configuration ---
+        let DIMENSIONS = 50;
+        const N_POINTS = 60;
+        const KNN_K = 5;
+        let NOISE_SCALE = 1.0;
         
-        // --- Gemini API Setup ---
-        const apiKey = ""; // Injected by environment
-        let isGenerating = false;
+        // --- State ---
+        let points = [];
+        let query = { x: 0, y: 0, features: [] };
+        let mode = 'knn'; // 'knn' or 'rkcnn'
+        let canvas, ctx, width, height;
+        let heatmapCanvas, heatmapCtx;
+        let bestSubset = []; 
+        let currentSubset = []; 
+        let noiseField = []; // Static noise for background grid
 
-        async function callGemini(prompt) {
-            if (isGenerating) return;
-            isGenerating = true;
+        // --- Data Generation ---
+        class Point {
+            constructor(label) {
+                this.label = label; // 0 or 1
+                this.features = new Array(DIMENSIONS).fill(0);
+                this.baseNoise = new Array(DIMENSIONS).fill(0);
+                
+                // 1. Generate Signal (Dimensions 0 & 1)
+                const centerX = label === 0 ? 0.3 : 0.7;
+                const centerY = label === 0 ? 0.3 : 0.7;
+                
+                this.features[0] = (centerX + (Math.random() - 0.5) * 0.4); 
+                this.features[1] = (centerY + (Math.random() - 0.5) * 0.4); 
+
+                // 2. Generate Base Noise (Dimensions 2 to END)
+                for (let i = 2; i < DIMENSIONS; i++) {
+                    this.baseNoise[i] = (Math.random() - 0.5); // Centered at 0
+                }
+                this.updateEffectiveFeatures();
+            }
+
+            updateEffectiveFeatures() {
+                // Apply noise scale
+                for (let i = 2; i < DIMENSIONS; i++) {
+                    // Start from 0.5 (middle) + noise
+                    this.features[i] = 0.5 + (this.baseNoise[i] * NOISE_SCALE); 
+                }
+            }
+
+            distanceTo(otherFeatures, dimsToUse) {
+                let sum = 0;
+                const dims = dimsToUse || Array.from({length: DIMENSIONS}, (_, i) => i);
+                
+                for (let d of dims) {
+                    let diff = this.features[d] - otherFeatures[d];
+                    sum += diff * diff;
+                }
+                return Math.sqrt(sum);
+            }
+        }
+
+        function initData() {
+            points = [];
+            for(let i=0; i<N_POINTS; i++) {
+                points.push(new Point(i % 2));
+            }
             
-            // Show loading state
-            const originalContent = aiResponseArea.innerHTML;
-            aiResponseArea.innerHTML = `
-                <div class="space-y-2 animate-pulse">
-                    <div class="h-2 bg-purple-500/20 rounded w-3/4"></div>
-                    <div class="h-2 bg-purple-500/20 rounded w-1/2"></div>
-                    <div class="h-2 bg-purple-500/20 rounded w-full"></div>
-                </div>
-            `;
+            // Generate RkCNN Subset
+            bestSubset = [0, 1];
+            for(let i=0; i<3; i++) {
+                if(DIMENSIONS > 2) {
+                    bestSubset.push(Math.floor(Math.random() * (DIMENSIONS - 2)) + 2);
+                }
+            }
+            // Ensure unique
+            bestSubset = [...new Set(bestSubset)];
 
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
+            // Initialize Background Noise Field
+            noiseField = [];
+            for(let i=0; i<50*50; i++) {
+                const noise = new Array(DIMENSIONS).fill(0);
+                for(let d=2; d<DIMENSIONS; d++) noise[d] = (Math.random() - 0.5);
+                noiseField.push(noise);
+            }
+        }
+
+        // --- Heatmap Generation ---
+        function updateHeatmap() {
+            if (!width || width <= 0 || !height || height <= 0) return;
+
+            const gridW = 50;
+            const gridH = 50;
+            const cellW = width / gridW;
+            const cellH = height / gridH;
+
+            heatmapCtx.clearRect(0, 0, width, height);
+            
+            // Determine dimensions to use
+            let dimsToUse = mode === 'knn' 
+                    ? Array.from({length: DIMENSIONS}, (_, i) => i)
+                    : bestSubset;
+
+            for (let y = 0; y < gridH; y++) {
+                for (let x = 0; x < gridW; x++) {
+                    const features = new Array(DIMENSIONS).fill(0);
+                    features[0] = (x / gridW) + (0.5/gridW); 
+                    features[1] = (y / gridH) + (0.5/gridH); 
+                    
+                    const noise = noiseField[y * gridW + x];
+                    for (let d = 2; d < DIMENSIONS; d++) {
+                        features[d] = 0.5 + (noise[d] * NOISE_SCALE);
+                    }
+
+                    // Classify
+                    let voteA = 0;
+                    let voteB = 0;
+                    
+                    const dists = points.map(p => ({
+                        label: p.label,
+                        d: p.distanceTo(features, dimsToUse)
+                    })).sort((a, b) => a.d - b.d).slice(0, 3);
+
+                    dists.forEach(n => n.label === 0 ? voteA++ : voteB++);
+
+                    const isA = voteA > voteB;
+                    const strength = (Math.max(voteA, voteB) / 3); 
+                    
+                    heatmapCtx.fillStyle = isA 
+                        ? `rgba(59, 130, 246, ${strength * 0.4})`
+                        : `rgba(249, 115, 22, ${strength * 0.4})`;
+                    
+                    heatmapCtx.fillRect(Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW)+1, Math.ceil(cellH)+1);
+                }
+            }
+        }
+
+        // --- Separation Score Logic ---
+        function calculateSeparationScore(subsetIndices) {
+            let centA = new Array(subsetIndices.length).fill(0);
+            let centB = new Array(subsetIndices.length).fill(0);
+            
+            const nA = points.filter(p => p.label === 0).length;
+            const nB = points.filter(p => p.label === 1).length;
+
+            points.forEach(p => {
+                subsetIndices.forEach((dim, i) => {
+                    if (p.label === 0) { centA[i] += p.features[dim]; }
+                    else { centB[i] += p.features[dim]; }
                 });
+            });
+            
+            centA = centA.map(v => v / nA);
+            centB = centB.map(v => v / nB);
 
-                if (!response.ok) throw new Error('API Request failed');
-
-                const data = await response.json();
-                const text = data.candidates[0].content.parts[0].text;
-                
-                // Render Markdown-ish text
-                aiResponseArea.innerHTML = marked.parse(text);
-                
-            } catch (error) {
-                console.error(error);
-                aiResponseArea.innerHTML = `<span class="text-red-400">Error: Could not reach Gemini. Please try again.</span>`;
-            } finally {
-                isGenerating = false;
+            let bv = 0;
+            for(let i=0; i<subsetIndices.length; i++) {
+                bv += (centA[i] - centB[i]) ** 2;
             }
+            bv = Math.sqrt(bv);
+
+            let wv = 0;
+            points.forEach(p => {
+                let d = 0;
+                subsetIndices.forEach((dim, i) => {
+                    let c = p.label === 0 ? centA[i] : centB[i];
+                    d += (p.features[dim] - c) ** 2;
+                });
+                wv += Math.sqrt(d);
+            });
+            wv /= points.length;
+
+            return wv === 0 ? 0 : bv / wv;
         }
 
-        function analyzeState() {
-            // 1. Gather Data
-            const weights = currentWeights || [];
-            // Sort to find dominant keys
-            const sorted = weights.map((w, i) => ({ w, i, color: keys[i].colorName })).sort((a, b) => b.w - a.w);
-            const topMatch = sorted[0];
-            const isPeaked = topMatch.w > 0.8;
-            const isUniform = topMatch.w < 0.25;
-
-            // 2. Construct Prompt
-            let contextDesc = `
-            You are an AI tutor explaining Transformer Attention. The user is interacting with a visualization where "Attention is Soft KNN".
-            
-            Current State Data:
-            - The Query vector is positioned such that the highest attention weight is ${(topMatch.w * 100).toFixed(1)}% on a ${topMatch.color} Key.
-            - The distribution is ${isPeaked ? "highly peaked (Low Entropy)" : (isUniform ? "very diffuse (High Entropy)" : "mixed")}.
-            `;
-
-            if (isPeaked) {
-                contextDesc += `Explain that this is "Hard Attention". The model is effectively "copying" information from a single specific memory (the ${topMatch.color} key). This is useful for precise lookup.`;
-            } else if (isUniform) {
-                contextDesc += `Explain that this is "High Entropy" attention. The query is confused or unrelated to all keys, so it's averaging everything. The context vector is a muddy mix.`;
-            } else {
-                contextDesc += `Explain that the model is "mixing concepts". It's retrieving a blend of information, primarily from the ${topMatch.color} key but with significant influence from others. This creates a nuanced representation.`;
-            }
-
-            const prompt = `${contextDesc}
-            
-            Task: Write a short, insightful, 2-paragraph explanation of what this state represents in a real Neural Network. Use 2nd person ("You are..."). Be encouraging.`;
-
-            callGemini(prompt);
-        }
-
-        function generateAnalogy() {
-            const prompt = `
-            Generate a creative, unique analogy to explain the concept of "Attention mechanisms are just weighted averages (Kernel Regression)".
-            
-            Do NOT use the standard "Database Lookup" or "Filing Cabinet" analogy.
-            
-            Try metaphors like:
-            - Social dynamics (listening to voices in a crowd)
-            - Cooking (blending flavors)
-            - Lighting (spotlights)
-            - Gravity/Orbit
-            
-            Keep it under 3 sentences. Make it fun and clear for a student. Start with "Imagine..."
-            `;
-            callGemini(prompt);
-        }
-
-        // --- Visualization Logic ---
-        let width, height;
-        const keys = [];
-        let query = { x: 0, y: 0, color: 'white', radius: 15, isDragging: false };
-        let currentWeights = []; // Store for AI access
-        
-        // Configuration
-        const keyCount = 7;
-        const kernelScale = 0.0001; 
-
-        // Colors for Values (V)
-        const colors = [
-            { r: 239, g: 68, b: 68, name: 'Red' },   
-            { r: 59, g: 130, b: 246, name: 'Blue' },  
-            { r: 34, g: 197, b: 94, name: 'Green' },   
-            { r: 234, g: 179, b: 8, name: 'Yellow' },   
-            { r: 168, g: 85, b: 247, name: 'Purple' },  
-            { r: 236, g: 72, b: 153, name: 'Pink' },  
-            { r: 14, g: 165, b: 233, name: 'Sky' }   
-        ];
-
+        // --- Rendering ---
         function resize() {
             const container = canvas.parentElement;
-            canvas.width = container.clientWidth * window.devicePixelRatio;
-            canvas.height = container.clientHeight * window.devicePixelRatio;
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-            width = container.clientWidth;
-            height = container.clientHeight;
+            if (!container) return;
+
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            width = canvas.width;
+            height = canvas.height;
             
-            if (keys.length === 0) initKeys();
-            if (query.x === 0) {
-                query.x = width / 2;
-                query.y = height / 2;
+            if (width > 0 && height > 0) {
+                heatmapCanvas.width = width;
+                heatmapCanvas.height = height;
+                updateHeatmap();
             }
         }
 
-        function initKeys() {
-            keys.length = 0;
-            for (let i = 0; i < keyCount; i++) {
-                const colorObj = colors[i % colors.length];
-                keys.push({
-                    x: Math.random() * (width - 100) + 50,
-                    y: Math.random() * (height - 100) + 50,
-                    color: colorObj,
-                    colorName: colorObj.name,
-                    radius: 8,
-                    id: i
+        function draw() {
+            if (!width || width <= 0 || !height || height <= 0) return;
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (heatmapCanvas.width > 0 && heatmapCanvas.height > 0) {
+                ctx.drawImage(heatmapCanvas, 0, 0);
+            }
+
+            points.forEach(p => {
+                const cx = p.features[0] * width;
+                const cy = p.features[1] * height;
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+                ctx.fillStyle = p.label === 0 ? '#3b82f6' : '#f97316';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+
+            if (query.x !== 0) {
+                const qx = query.features[0] * width;
+                const qy = query.features[1] * height;
+                
+                ctx.beginPath();
+                ctx.arc(qx, qy, 10, 0, Math.PI * 2);
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                let dimsToUse = mode === 'knn' 
+                    ? Array.from({length: DIMENSIONS}, (_, i) => i)
+                    : bestSubset;
+                
+                currentSubset = dimsToUse;
+
+                const dists = points.map(p => ({
+                    point: p,
+                    d: p.distanceTo(query.features, dimsToUse)
+                })).sort((a, b) => a.d - b.d).slice(0, KNN_K);
+
+                dists.forEach(n => {
+                    const p = n.point;
+                    ctx.beginPath();
+                    ctx.moveTo(qx, qy);
+                    ctx.lineTo(p.features[0] * width, p.features[1] * height);
+                    
+                    if (mode === 'knn') {
+                        const dx = p.features[0] - query.features[0];
+                        const dy = p.features[1] - query.features[1];
+                        const signalDist = Math.sqrt(dx*dx + dy*dy);
+                        
+                        if(signalDist > 0.3) {
+                            ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)'; 
+                        } else {
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                        }
+                    } else {
+                        ctx.strokeStyle = 'rgba(52, 211, 153, 0.8)';
+                    }
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
                 });
             }
         }
 
-        function getDistanceSq(p1, p2) {
-            return (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
-        }
-
-        function update() {
-            let rawWeights = keys.map(k => {
-                const distSq = getDistanceSq(query, k);
-                return Math.exp(-distSq * kernelScale);
-            });
-
-            const sumWeights = rawWeights.reduce((a, b) => a + b, 0);
-            const normalizedWeights = rawWeights.map(w => w / sumWeights);
-            currentWeights = normalizedWeights;
-
-            let r = 0, g = 0, b = 0;
-            normalizedWeights.forEach((w, i) => {
-                r += keys[i].color.r * w;
-                g += keys[i].color.g * w;
-                b += keys[i].color.b * w;
-            });
+        // --- Interaction ---
+        function setMode(newMode) {
+            mode = newMode;
             
-            query.color = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+            const btnKnn = document.getElementById('btn-knn');
+            const btnRkcnn = document.getElementById('btn-rkcnn');
+            const badge = document.getElementById('mode-badge');
 
-            draw(normalizedWeights);
-            updateUI(normalizedWeights);
-            requestAnimationFrame(update);
-        }
-
-        function draw(weights) {
-            ctx.clearRect(0, 0, width, height);
-
-            // Draw Connections
-            keys.forEach((k, i) => {
-                const weight = weights[i];
-                if (weight > 0.01) {
-                    ctx.beginPath();
-                    ctx.moveTo(query.x, query.y);
-                    ctx.lineTo(k.x, k.y);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${weight})`;
-                    ctx.lineWidth = weight * 8;
-                    ctx.stroke();
-                }
-            });
-
-            // Draw Keys
-            keys.forEach(k => {
-                ctx.beginPath();
-                ctx.arc(k.x, k.y, k.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `rgb(${k.color.r},${k.color.g},${k.color.b})`;
-                ctx.fill();
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = `rgb(${k.color.r},${k.color.g},${k.color.b})`;
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            });
-
-            // Draw Query
-            ctx.beginPath();
-            ctx.arc(query.x, query.y, query.radius, 0, Math.PI * 2);
-            ctx.fillStyle = query.color;
-            ctx.fill();
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = 'white';
-            ctx.stroke();
-            
-            ctx.fillStyle = 'white';
-            ctx.font = '12px Inter';
-            ctx.fillText("Q", query.x - 5, query.y + 4);
-        }
-
-        function updateUI(weights) {
-            let html = '';
-            const indices = weights.map((w, i) => ({w, i})).sort((a, b) => b.w - a.w);
-            
-            indices.forEach(item => {
-                const k = keys[item.i];
-                const pct = (item.w * 100).toFixed(1);
-                if (item.w > 0.01) {
-                    const colorHex = `rgb(${k.color.r},${k.color.g},${k.color.b})`;
-                    html += `
-                        <div class="flex items-center justify-between gap-4">
-                            <div class="flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full" style="background-color: ${colorHex}"></span>
-                                <span class="text-slate-300">Key ${item.i}</span>
-                            </div>
-                            <div class="text-right font-bold" style="color: ${colorHex}">${pct}%</div>
-                        </div>
-                        <div class="w-full bg-slate-700 h-1 rounded-full mt-1 mb-2">
-                            <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${colorHex}"></div>
-                        </div>
-                    `;
-                }
-            });
-            weightsDisplay.innerHTML = html;
-        }
-
-        // Interaction Handlers
-        function handleStart(x, y) {
-            const dx = x - query.x;
-            const dy = y - query.y;
-            if (dx*dx + dy*dy < (query.radius + 20)**2) {
-                query.isDragging = true;
-            }
-        }
-
-        function handleMove(x, y) {
-            if (query.isDragging) {
-                query.x = x;
-                query.y = y;
+            if (mode === 'knn') {
+                btnKnn.classList.add('glass-active');
+                btnRkcnn.classList.remove('glass-active');
+                badge.innerText = `Standard kNN (${DIMENSIONS} Dims)`;
+                badge.className = "glass px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-red-400 border border-red-500/30";
                 
-                if(query.x < 0) query.x = 0;
-                if(query.x > width) query.x = width;
-                if(query.y < 0) query.y = 0;
-                if(query.y > height) query.y = height;
+                const score = calculateSeparationScore(Array.from({length: DIMENSIONS}, (_, i) => i));
+                updateScoreUI(score, "Very Low. Noise drowns out the signal.");
+                
+            } else {
+                btnKnn.classList.remove('glass-active');
+                btnRkcnn.classList.add('glass-active');
+                badge.innerText = `RkCNN (Subset of ${bestSubset.length} Dims)`;
+                badge.className = "glass px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-emerald-400 border border-emerald-500/30";
+                
+                const score = calculateSeparationScore(bestSubset);
+                updateScoreUI(score, "High. Robust subset selected.");
+            }
+            
+            updateFeaturesViz();
+            setTimeout(() => {
+                if (width > 0 && height > 0) {
+                    updateHeatmap();
+                    draw();
+                }
+            }, 10);
+        }
+
+        function updateNoise(val) {
+            NOISE_SCALE = parseFloat(val);
+            document.getElementById('noise-val').innerText = NOISE_SCALE.toFixed(1) + 'x';
+            
+            points.forEach(p => p.updateEffectiveFeatures());
+            
+            if (mode === 'knn') {
+                const score = calculateSeparationScore(Array.from({length: DIMENSIONS}, (_, i) => i));
+                updateScoreUI(score, "Very Low. Noise drowns out the signal.");
+            } else {
+                const score = calculateSeparationScore(bestSubset);
+                updateScoreUI(score, "High. Signal preserved.");
+            }
+
+            setTimeout(() => {
+                if (width > 0 && height > 0) {
+                    updateHeatmap();
+                    draw();
+                }
+            }, 10);
+        }
+
+        function updateDimensions(val) {
+            const newDim = parseInt(val);
+            if(newDim < 3 || newDim > 500) return;
+            
+            DIMENSIONS = newDim;
+            document.getElementById('noise-dims-display').innerText = DIMENSIONS - 2;
+            
+            // Re-init data with new dimensions
+            initData();
+            
+            // Update UI Text
+            document.querySelectorAll('.dim-count-text').forEach(el => el.innerText = DIMENSIONS);
+            
+            setMode(mode); // Refresh logic
+        }
+
+        function updateScoreUI(score, desc) {
+            const bar = document.getElementById('score-bar');
+            const val = document.getElementById('score-val');
+            const txt = document.getElementById('score-desc');
+            const pct = Math.min((score / 2.0) * 100, 100); 
+            
+            bar.style.width = `${pct}%`;
+            bar.className = `h-full bar-anim ${score > 1.0 ? 'bg-emerald-500' : 'bg-red-500'}`;
+            val.innerText = score.toFixed(4);
+            val.className = `mono font-bold ${score > 1.0 ? 'text-emerald-400' : 'text-red-400'}`;
+            txt.innerText = desc;
+        }
+
+        function updateFeaturesViz() {
+            const container = document.getElementById('features-viz');
+            container.innerHTML = '';
+            
+            // Show up to 30 dots
+            const limit = Math.min(DIMENSIONS, 30);
+            
+            for(let i=0; i<limit; i++) {
+                const isSignal = i < 2;
+                const isActive = currentSubset.includes(i);
+                
+                const dot = document.createElement('div');
+                dot.className = `w-2 h-2 rounded-full transition-all duration-300 ${isActive ? 'scale-125' : 'opacity-20 scale-75'}`;
+                
+                if (isSignal) {
+                    if(isActive) {
+                        dot.classList.add('bg-white', 'shadow-[0_0_10px_white]');
+                    } else {
+                        dot.classList.add('bg-slate-500');
+                    }
+                } else {
+                    dot.classList.add(isActive ? 'bg-red-500' : 'bg-slate-700');
+                }
+                container.appendChild(dot);
+            }
+            if(DIMENSIONS > 30) {
+                const more = document.createElement('span');
+                more.innerText = '...';
+                more.className = 'text-xs text-slate-500 ml-1';
+                container.appendChild(more);
             }
         }
 
-        function handleEnd() {
-            query.isDragging = false;
-        }
-
-        canvas.addEventListener('mousedown', e => {
-            const rect = canvas.getBoundingClientRect();
-            handleStart(e.clientX - rect.left, e.clientY - rect.top);
-        });
-        window.addEventListener('mousemove', e => {
-            const rect = canvas.getBoundingClientRect();
-            handleMove(e.clientX - rect.left, e.clientY - rect.top);
-        });
-        window.addEventListener('mouseup', handleEnd);
-
-        canvas.addEventListener('touchstart', e => {
-            e.preventDefault();
-            const rect = canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            handleStart(touch.clientX - rect.left, touch.clientY - rect.top);
-        }, {passive: false});
+        // --- Event Listeners ---
+        canvas = document.getElementById('mainCanvas');
+        ctx = canvas.getContext('2d');
         
-        window.addEventListener('touchmove', e => {
-            const rect = canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            handleMove(touch.clientX - rect.left, touch.clientY - rect.top);
-        }, {passive: false});
-        
-        window.addEventListener('touchend', handleEnd);
+        heatmapCanvas = document.createElement('canvas');
+        heatmapCtx = heatmapCanvas.getContext('2d');
 
-        window.addEventListener('resize', resize);
-        // Initial setup
-        setTimeout(() => {
-            resize();
-            update();
-        }, 100);
+        document.getElementById('noise-slider').addEventListener('input', (e) => {
+            updateNoise(e.target.value);
+        });
+
+        document.getElementById('dim-input').addEventListener('change', (e) => {
+            updateDimensions(e.target.value);
+        });
+
+        window.addEventListener('resize', () => { 
+            resize(); 
+            draw(); 
+        });
+        
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            const nx = (e.clientX - rect.left) / width;
+            const ny = (e.clientY - rect.top) / height;
+            
+            query.x = e.clientX - rect.left;
+            query.y = e.clientY - rect.top;
+            
+            query.features[0] = nx;
+            query.features[1] = ny;
+            for(let i=2; i<DIMENSIONS; i++) {
+                query.features[i] = 0.5 + ((Math.random() - 0.5) * NOISE_SCALE);
+            }
+            
+            draw();
+        });
+
+        initData();
+        resize();
+        setMode('knn');
 
     </script>
 </body>
