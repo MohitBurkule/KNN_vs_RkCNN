@@ -2,6 +2,12 @@
 
 Visualizing how Random Subspace Sampling beats the Curse of Dimensionality.
 
+
+
+https://github.com/user-attachments/assets/386c8cb2-8ac9-4805-bf61-d05388cabf23
+
+
+
 ## Live Demo
 
 Check out the live visualization here: [https://mohitburkule.github.io/Attention_is_KNN/](https://mohitburkule.github.io/Attention_is_KNN/)
